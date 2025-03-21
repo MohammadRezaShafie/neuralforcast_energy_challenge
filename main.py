@@ -55,15 +55,6 @@ models = [
     )
 ]
 
-# nf = NeuralForecast(models=models, freq='H')
-# nf.fit(df=Y_train_df)
-
-# Y_hat_df = nf.predict(df= Y_train_df, futr_df=Y_test_df)
-# # Plot forecast
-
-# fig = plot_series(Y_train_df, Y_hat_df)
-# fig.savefig("forecast_plot.png", dpi=300, bbox_inches='tight')
-# plt.close(fig)
 
 
 # Split into train/validation
