@@ -100,17 +100,17 @@ model_settings_text = f"Model: {model_name}\n"
 for k, v in config.items():
     model_settings_text += f"{k}: {v}\n"
     
-# Add both boxes to the plot
-plt.gcf().text(0.75, 0.85, metrics_text, fontsize=10, bbox=dict(facecolor='black', alpha=0.8))
-plt.gcf().text(0.02, 0.05, model_settings_text, fontsize=9, va='bottom', bbox=dict(facecolor='black', alpha=0.8))
-
+# Add annotations directly to the figure
+fig.text(0.75, 0.85, metrics_text, fontsize=10, bbox=dict(facecolor='black', alpha=0.8), color='white')
+fig.text(0.02, 0.05, model_settings_text, fontsize=9, va='bottom', bbox=dict(facecolor='black', alpha=0.8), color='white')
 # Save plot
 results_dir = "results"
 os.makedirs(results_dir, exist_ok=True)
 # 5. Generate indexed timestamped filename
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 index = len(os.listdir(results_dir)) + 1
-filename = f"{results_dir}/forecast_{model_name}_max_steps{max_steps}.png"
+filename = f"{results_dir}/forecast_{model_name}_idx{index}_{timestamp}_r2_{r2:.3f}.png"
+
 
 fig.savefig(filename, dpi=300, bbox_inches='tight')
 plt.close(fig)
