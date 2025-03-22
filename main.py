@@ -1,30 +1,26 @@
 import time
 import numpy as np
 import pandas as pd
+import logging
 import pytorch_lightning as pl
 import matplotlib.pyplot as plt
 import torch
 from neuralforecast import NeuralForecast
-from neuralforecast.models import TimeLLM 
 from neuralforecast.losses.pytorch import MAE
 from neuralforecast.tsdataset import TimeSeriesDataset
-from neuralforecast.utils import AirPassengers, AirPassengersPanel, AirPassengersStatic, augment_calendar_df
+from neuralforecast.utils import AirPassengers, AirPassengersPanel, AirPassengersStatic, augment_calendar_df, AirPassengersDF
 from transformers import GPT2Config, GPT2Model, GPT2Tokenizer
-import pandas as pd
-import logging
 from utilsforecast.plotting import plot_series
-from neuralforecast.models import NBEATS, NHITS, LSTM, NHITS, RNN, TFT
-from neuralforecast import NeuralForecast
-from neuralforecast.models import NBEATS, NHITS
-from neuralforecast.utils import AirPassengersDF
+from neuralforecast.models import NBEATS, NHITS, LSTM, NHITS, RNN, TFT, TimeLLM
 
 
 print('imported all the packages')
 
 logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
 
-Y_train_df = pd.read_csv('training_energy.csv')
-Y_test_df = pd.read_csv('test_energy.csv')
+
+Y_train_df = pd.read_csv('data/training_energy.csv')
+Y_test_df = pd.read_csv('data/test_energy.csv')
 Y_train_df = Y_train_df.rename(columns={"date": "ds", "Load": "y"})
 Y_train_df["unique_id"] = 1
 Y_train_df["ds"] = pd.to_datetime(Y_train_df["ds"])
