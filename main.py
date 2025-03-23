@@ -1,6 +1,6 @@
 import time
 import argparse
-import os 
+import os
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -17,11 +17,13 @@ from utilsforecast.plotting import plot_series
 from neuralforecast.models import NBEATS, NHITS, LSTM, NHITS, RNN, TFT, TimeLLM
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
+from config import MODEL_CONFIGS 
+
 print('imported all the packages')
 
 # Suppress PyTorch Lightning logs
 logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
-parser = argparse.ArgumentParser(description='NeuralForcast for Energy challenge')
+parser = argparse.ArgumentParser(description='NeuralForecast for Energy challenge')
 parser.add_argument('--epochs', type=int, default=10)
 args = parser.parse_args()
 
@@ -37,98 +39,69 @@ def load_and_preprocess(file_path):
 Y_train_df = load_and_preprocess('data/training_energy.csv')
 Y_test_df = load_and_preprocess('data/test_energy.csv')
 
-
-futr_exog = ['Site-1 Temp', 'Site-1 GHI']
-
-# Iterate through models
-print(f"\n--- Running Model: LSTM ---")
-
-# Split into first and second half of training data
+# Split into train/validation
 mid_point = len(Y_train_df) // 3
 train_df = Y_train_df.iloc[:2*mid_point]
 val_df = Y_train_df.iloc[2*mid_point:]
-
-# Dynamically set horizon based on prediction target (val_df)
 horizon = len(val_df)
-input_size = horizon  # 1 month input
-max_steps=args.epochs
-# Define the model with correct horizon
+input_size = horizon
+max_steps = args.epochs
 
-# config = {
-#     'h': horizon,
-#     'input_size': input_size,
-#     'futr_exog_list': futr_exog,
-#     'max_steps': max_steps,
-#     'scaler_type': 'standard',
-#     'encoder_hidden_size': 256,
-#     'decoder_hidden_size': 256,
-#     "encoder_n_layers":3,         # Deeper encoder
-#     "decoder_layers":3,
-#     'learning_rate': 1e-3,
-# }
-
-config = {
-    'h': horizon,
-    'input_size': input_size,
-    'futr_exog_list': futr_exog,
-    'max_steps': max_steps,
-    'scaler_type': 'standard',
-    'hidden_size': 128,
-    'learning_rate': 1e-3,
-    'batch_size': 2,
-}
-
-
-model = TFT(**config)
-
-model_name = model.__class__.__name__
-
-# Fit the model on the first half
-nf = NeuralForecast(models=[model], freq='H')
-nf.fit(df=train_df)
-
-# Predict the second half
-Y_hat_df = nf.predict(futr_df=val_df)
-
-# Merge true and predicted values for evaluation
-merged_df = val_df[['ds', 'y']].copy()
-merged_df = merged_df.merge(Y_hat_df, on='ds', how='left')
-
-y_true = merged_df['y']
-y_pred = merged_df[model_name]  # Dynamically access by model name
-
-# Calculate metrics
-r2 = r2_score(y_true, y_pred)
-rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-mae = mean_absolute_error(y_true, y_pred)
-
-print(f"R² Score : {r2:.4f}")
-print(f"RMSE     : {rmse:.4f}")
-print(f"MAE      : {mae:.4f}")
-
-# Plotting with metrics and model settings
-fig = plot_series(val_df, Y_hat_df)
-
-# Format metrics
-metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}"
-
-# Format model config for annotation
-model_settings_text = f"Model: {model_name}\n"
-for k, v in config.items():
-    model_settings_text += f"{k}: {v}\n"
-    
-# Add annotations directly to the figure
-fig.text(0.75, 0.85, metrics_text, fontsize=10, bbox=dict(facecolor='black', alpha=0.8), color='white')
-fig.text(0.02, 0.05, model_settings_text, fontsize=9, va='bottom', bbox=dict(facecolor='black', alpha=0.8), color='white')
-# Save plot
+# Output dir
 results_dir = "results"
 os.makedirs(results_dir, exist_ok=True)
-# 5. Generate indexed timestamped filename
-index = len(os.listdir(results_dir)) + 1
-filename = f"{results_dir}/forecast_{model_name}_idx{index}.png"
 
+# Iterate over model configs
+for model_idx, model_conf in enumerate(MODEL_CONFIGS):
+    model_class = model_conf['model_class']
+    config = model_conf['params'].copy()
+    config['h'] = horizon
+    config['input_size'] = input_size
+    config['max_steps'] = max_steps
 
-fig.savefig(filename, dpi=300, bbox_inches='tight')
-plt.close(fig)
+    model = model_class(**config)
+    model_name = model.__class__.__name__
 
-print(f"Plot saved as {filename}")
+    print(f"\n--- Running Model: {model_name} ---")
+
+    # Train + Predict
+    nf = NeuralForecast(models=[model], freq='H')
+    nf.fit(df=train_df)
+    Y_hat_df = nf.predict(futr_df=val_df)
+
+    # Evaluate
+    merged_df = val_df[['ds', 'y']].copy().merge(Y_hat_df, on='ds', how='left')
+    y_true = merged_df['y']
+    y_pred = merged_df[model_name]
+    r2 = r2_score(y_true, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    mae = mean_absolute_error(y_true, y_pred)
+
+    print(f"R² Score : {r2:.4f}")
+    print(f"RMSE     : {rmse:.2f}")
+    print(f"MAE      : {mae:.2f}")
+
+    # Plot
+    fig = plot_series(val_df, Y_hat_df)
+    metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}"
+    config_text = f"Model: {model_name}\n" + '\n'.join([f"{k}: {v}" for k, v in config.items()])
+
+    fig.text(0.75, 0.85, metrics_text, fontsize=10, bbox=dict(facecolor='black', alpha=0.8), color='white')
+    fig.text(0.02, 0.05, config_text, fontsize=9, va='bottom', bbox=dict(facecolor='black', alpha=0.8), color='white')
+
+    # Count existing files for this model in the results directory
+    existing_files = [
+        f for f in os.listdir(results_dir)
+        if f.startswith(f"forecast_{model_name}_idx") and f.endswith(".png")
+    ]
+    existing_indices = [
+        int(f.split("_idx")[1].split(".")[0]) for f in existing_files
+        if f.split("_idx")[1].split(".")[0].isdigit()
+    ]
+    next_index = max(existing_indices, default=0) + 1
+
+    filename = f"{results_dir}/forecast_{model_name}_idx{next_index}.png"
+    fig.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+    print(f"Plot saved as {filename}")
