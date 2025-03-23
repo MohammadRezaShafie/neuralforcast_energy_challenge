@@ -5,6 +5,7 @@ __pycache__/
 data
 lightning_logs
 results
+logs
 # C extensions
 *.so
 
