@@ -1,4 +1,5 @@
 import time
+import argparse
 import os 
 from datetime import datetime
 import numpy as np
@@ -20,6 +21,9 @@ print('imported all the packages')
 
 # Suppress PyTorch Lightning logs
 logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
+parser = argparse.ArgumentParser(description='NeuralForcast for Energy challenge')
+parser.add_argument('--epochs', type=int, default=10)
+args = parser.parse_args()
 
 # Load data
 def load_and_preprocess(file_path):
@@ -47,22 +51,35 @@ val_df = Y_train_df.iloc[2*mid_point:]
 # Dynamically set horizon based on prediction target (val_df)
 horizon = len(val_df)
 input_size = horizon  # 1 month input
-max_steps=15
+max_steps=args.epochs
 # Define the model with correct horizon
+
+# config = {
+#     'h': horizon,
+#     'input_size': input_size,
+#     'futr_exog_list': futr_exog,
+#     'max_steps': max_steps,
+#     'scaler_type': 'standard',
+#     'encoder_hidden_size': 256,
+#     'decoder_hidden_size': 256,
+#     "encoder_n_layers":3,         # Deeper encoder
+#     "decoder_layers":3,
+#     'learning_rate': 1e-3,
+# }
 
 config = {
     'h': horizon,
     'input_size': input_size,
-    'inference_input_size': 168,
     'futr_exog_list': futr_exog,
     'max_steps': max_steps,
     'scaler_type': 'standard',
-    'encoder_hidden_size': 256,
-    'decoder_hidden_size': 256,
+    'hidden_size': 128,
     'learning_rate': 1e-3,
+    'batch_size': 2,
 }
 
-model = LSTM(**config)
+
+model = TFT(**config)
 
 model_name = model.__class__.__name__
 
@@ -107,9 +124,8 @@ fig.text(0.02, 0.05, model_settings_text, fontsize=9, va='bottom', bbox=dict(fac
 results_dir = "results"
 os.makedirs(results_dir, exist_ok=True)
 # 5. Generate indexed timestamped filename
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 index = len(os.listdir(results_dir)) + 1
-filename = f"{results_dir}/forecast_{model_name}_idx{index}_{timestamp}_r2_{r2:.3f}.png"
+filename = f"{results_dir}/forecast_{model_name}_idx{index}.png"
 
 
 fig.savefig(filename, dpi=300, bbox_inches='tight')
