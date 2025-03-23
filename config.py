@@ -1,8 +1,8 @@
 # model_configs.py
 
-from neuralforecast.models import LSTM, NHITS, TFT, KAN, VanillaTransformer
+from neuralforecast.models import LSTM, NHITS, TFT, KAN, VanillaTransformer ,NBEATSx
 
-from neuralforecast.losses.pytorch import MAE
+from neuralforecast.losses.pytorch import MAE, MQLoss
 
 futr_exog = ['Site-1 Temp', 'Site-1 GHI']
 
@@ -102,6 +102,18 @@ MODEL_CONFIGS = {
             'batch_size': 32,
             'scaler_type': 'robust',
             'random_seed': 1,
+        }
+    },
+        'NBEATSx': {
+        'model_class': NBEATSx,
+        'params': {
+            'h': 168,
+            'input_size': 336,
+            'loss': MQLoss(level=[80, 90]),
+            'scaler_type': 'robust',
+            'dropout_prob_theta': 0.5,
+            'max_steps': None,
+            'val_check_steps': None,
         }
     }
 }
