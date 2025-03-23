@@ -16,25 +16,20 @@ from transformers import GPT2Config, GPT2Model, GPT2Tokenizer
 from utilsforecast.plotting import plot_series
 from neuralforecast.models import NBEATS, NHITS, LSTM, NHITS, RNN, TFT, TimeLLM
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
-
+from utils import load_and_preprocess
 from config import MODEL_CONFIGS 
 
 print('imported all the packages')
 
 # Suppress PyTorch Lightning logs
 logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
+
 parser = argparse.ArgumentParser(description='NeuralForecast for Energy challenge')
 parser.add_argument('--epochs', type=int, default=10)
+parser.add_argument('--models', nargs='+', default=['LSTM'], help='List of models to run')
 args = parser.parse_args()
 
 # Load data
-def load_and_preprocess(file_path):
-    df = pd.read_csv(file_path)
-    df = df.rename(columns={"date": "ds", "Load": "y"})
-    df["unique_id"] = 1
-    df["ds"] = pd.to_datetime(df["ds"])
-    df = df.sort_values(by=["unique_id", "ds"])
-    return df
 
 Y_train_df = load_and_preprocess('data/training_energy.csv')
 Y_test_df = load_and_preprocess('data/test_energy.csv')
@@ -51,8 +46,17 @@ max_steps = args.epochs
 results_dir = "results"
 os.makedirs(results_dir, exist_ok=True)
 
-# Iterate over model configs
-for model_idx, model_conf in enumerate(MODEL_CONFIGS):
+selected_models = args.models
+print(f"Selected models: {selected_models}")
+
+for name in selected_models:
+    if name not in MODEL_CONFIGS:
+        raise ValueError(f"Unknown model '{name}'. Available: {list(MODEL_CONFIGS.keys())}")
+
+# Loop through selected models
+for model_name in selected_models:
+    
+    model_conf = MODEL_CONFIGS[model_name]
     model_class = model_conf['model_class']
     config = model_conf['params'].copy()
     config['h'] = horizon
