@@ -8,6 +8,7 @@ import logging
 import pytorch_lightning as pl
 import matplotlib.pyplot as plt
 import torch
+from tqdm import tqdm
 from neuralforecast import NeuralForecast
 from neuralforecast.losses.pytorch import MAE
 from neuralforecast.tsdataset import TimeSeriesDataset
@@ -109,17 +110,24 @@ for model_name in selected_models:
     all_preds = []
     start_idx = 0
     
-    while start_idx + horizon <= len(val_df):
+    n_windows = (len(val_df) - horizon) // horizon + 1  # Total number of full windows
+    print(f"Starting sliding window inference and training: {n_windows} windows total.\n")
+
+    # Initialize tqdm progress bar
+    for window_idx in tqdm(range(n_windows), desc=f"{model_name} Sliding Windows"):
+        print()
         window_df = val_df.iloc[start_idx : start_idx + horizon].copy()
         preds = nf.predict(futr_df=window_df)
-        all_preds.append(preds)    
+        all_preds.append(preds)
+
         if args.use_preds:
             window_df = window_df.merge(preds[['ds', model_name]], on='ds', how='left')
             window_df['y'] = window_df[model_name]
             window_df.drop(columns=[model_name], inplace=True)
+
         start_idx += horizon  # move window
         df_combined = pd.concat([train_df, window_df], ignore_index=True)
-        nf.fit(df=df_combined, use_init_models = False)
+        nf.fit(df=df_combined, use_init_models=False)
         
     # Y_hat_df = nf.predict(futr_df=val_df, step_size=horizon)
     
