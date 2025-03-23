@@ -49,6 +49,20 @@ new_max_steps = args.new_epochs
 
 # Output dir
 results_dir = "results"
+# Create a new unique subdirectory for this run's plots
+existing_plot_dirs = [
+    d for d in os.listdir(results_dir)
+    if d.startswith("plots_idx_") and os.path.isdir(os.path.join(results_dir, d))
+]
+existing_indices = [
+    int(d.split("_")[-1]) for d in existing_plot_dirs
+    if d.split("_")[-1].isdigit()
+]
+next_run_index = max(existing_indices, default=-1) + 1
+current_plot_dir = os.path.join(results_dir, f"plots_idx_{next_run_index}")
+os.makedirs(current_plot_dir, exist_ok=True)
+
+print(f"Created new plot directory: {current_plot_dir}")
 os.makedirs(results_dir, exist_ok=True)
 
 selected_models = args.models
@@ -88,11 +102,8 @@ for model_name in selected_models:
     # model.max_steps = new_max_steps
     for m in nf.models:
         m.max_steps = new_max_steps
-        m.trainer_kwargs['max_steps'] = 5   
+        m.trainer_kwargs['max_steps'] = new_max_steps   
         m.val_check_steps = new_max_steps
-        # Reset training state to enforce new max_steps
-        m.trainer = None  # Force reinitialization of the Trainer
-        m._fit_called = False  # Reset internal flag if exists
     print(f'Actual model max_steps: {nf.models[0].max_steps}')  # Verify change
 
     all_preds = []
@@ -113,8 +124,6 @@ for model_name in selected_models:
     # Y_hat_df = nf.predict(futr_df=val_df, step_size=horizon)
     
     Y_hat_df = pd.concat(all_preds).sort_values(['ds'])
-    # Y_hat_df = Y_hat_df.reset_index()
-    # print(f'{Y_hat_df.head(200)=}')
     # Evaluate
     merged_df = val_df[['ds', 'y']].copy().merge(Y_hat_df[['ds', model_name]], on='ds', how='inner')
     # Drop any rows with missing predictions or ground truth
@@ -142,8 +151,9 @@ for model_name in selected_models:
     fig.text(0.02, 0.05, config_text, fontsize=9, va='bottom', bbox=dict(facecolor='black', alpha=0.8), color='white')
 
     # Count existing files for this model in the results directory
+    
     existing_files = [
-        f for f in os.listdir(results_dir)
+        f for f in os.listdir(current_plot_dir)
         if f.startswith(f"forecast_{model_name}_idx") and f.endswith(".png")
     ]
     existing_indices = [
@@ -152,7 +162,7 @@ for model_name in selected_models:
     ]
     next_index = max(existing_indices, default=0) + 1
 
-    filename = f"{results_dir}/forecast_{model_name}_idx{next_index}.png"
+    filename = os.path.join(current_plot_dir, f"forecast_{model_name}_idx{next_index}.png")
     fig.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
