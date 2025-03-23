@@ -26,7 +26,11 @@ logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
 
 parser = argparse.ArgumentParser(description='NeuralForecast for Energy challenge')
 parser.add_argument('--epochs', type=int, default=10)
+parser.add_argument('--new-epochs', type=int, default=5)
 parser.add_argument('--models', nargs='+', default=['LSTM'], help='List of models to run')
+parser.add_argument('--use-preds', action='store_true',
+                    help='Use predicted values instead of ground truth for continued training')
+
 args = parser.parse_args()
 
 # Load data
@@ -41,6 +45,7 @@ val_df = Y_train_df.iloc[2*mid_point:]
 horizon = len(val_df)
 input_size = horizon
 max_steps = args.epochs
+new_max_steps = args.new_epochs
 
 # Output dir
 results_dir = "results"
@@ -68,27 +73,42 @@ for model_name in selected_models:
         input_size= config['input_size']
         
     config['max_steps'] = max_steps
+    config['val_check_steps'] = max_steps
 
     model = model_class(**config)
     model_name = model.__class__.__name__
 
     print(f"\n--- Running Model: {model_name} ---")
-
+    
+    print(f'{model.max_steps=}')
     # Train + Predict
     nf = NeuralForecast(models=[model], freq='H')
     nf.fit(df=train_df)
     print(f'{horizon=}')
-    
+    # model.max_steps = new_max_steps
+    for m in nf.models:
+        m.max_steps = new_max_steps
+        m.trainer_kwargs['max_steps'] = 5   
+        m.val_check_steps = new_max_steps
+        # Reset training state to enforce new max_steps
+        m.trainer = None  # Force reinitialization of the Trainer
+        m._fit_called = False  # Reset internal flag if exists
+    print(f'Actual model max_steps: {nf.models[0].max_steps}')  # Verify change
+
     all_preds = []
     start_idx = 0
     
     while start_idx + horizon <= len(val_df):
         window_df = val_df.iloc[start_idx : start_idx + horizon].copy()
         preds = nf.predict(futr_df=window_df)
-        all_preds.append(preds)
+        all_preds.append(preds)    
+        if args.use_preds:
+            window_df = window_df.merge(preds[['ds', model_name]], on='ds', how='left')
+            window_df['y'] = window_df[model_name]
+            window_df.drop(columns=[model_name], inplace=True)
         start_idx += horizon  # move window
         df_combined = pd.concat([train_df, window_df], ignore_index=True)
-        # nf.fit(df=df_combined, use_init_models = False)
+        nf.fit(df=df_combined, use_init_models = False)
         
     # Y_hat_df = nf.predict(futr_df=val_df, step_size=horizon)
     
@@ -111,7 +131,11 @@ for model_name in selected_models:
 
     # Plot
     fig = plot_series(val_df, Y_hat_df)
-    metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}"
+      
+    if args.use_preds:
+        metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}\nUsed Prediction"
+    else:
+        metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}"
     config_text = f"Model: {model_name}\n" + '\n'.join([f"{k}: {v}" for k, v in config.items()])
 
     fig.text(0.75, 0.85, metrics_text, fontsize=10, bbox=dict(facecolor='black', alpha=0.8), color='white')
