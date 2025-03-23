@@ -63,6 +63,9 @@ for model_name in selected_models:
     if config['h'] is None:
         config['h'] = horizon
         config['input_size'] = input_size
+    else:
+        horizon = config['h']
+        input_size= config['input_size']
         
     config['max_steps'] = max_steps
 
@@ -74,10 +77,28 @@ for model_name in selected_models:
     # Train + Predict
     nf = NeuralForecast(models=[model], freq='H')
     nf.fit(df=train_df)
-    Y_hat_df = nf.predict(futr_df=val_df)
-
+    print(f'{horizon=}')
+    
+    all_preds = []
+    start_idx = 0
+    
+    while start_idx + horizon <= len(val_df):
+        window_df = val_df.iloc[start_idx : start_idx + horizon].copy()
+        preds = nf.predict(futr_df=window_df)
+        all_preds.append(preds)
+        start_idx += horizon  # move window
+        df_combined = pd.concat([train_df, window_df], ignore_index=True)
+        # nf.fit(df=df_combined, use_init_models = False)
+        
+    # Y_hat_df = nf.predict(futr_df=val_df, step_size=horizon)
+    
+    Y_hat_df = pd.concat(all_preds).sort_values(['ds'])
+    # Y_hat_df = Y_hat_df.reset_index()
+    # print(f'{Y_hat_df.head(200)=}')
     # Evaluate
-    merged_df = val_df[['ds', 'y']].copy().merge(Y_hat_df, on='ds', how='left')
+    merged_df = val_df[['ds', 'y']].copy().merge(Y_hat_df[['ds', model_name]], on='ds', how='inner')
+    # Drop any rows with missing predictions or ground truth
+    merged_df = merged_df.dropna(subset=['y', model_name])
     y_true = merged_df['y']
     y_pred = merged_df[model_name]
     r2 = r2_score(y_true, y_pred)
