@@ -83,8 +83,8 @@ MODEL_CONFIGS = {
         'VanillaTransformer': {
         'model_class': VanillaTransformer,
         'params': {
-            'h': 168,                      # to be filled at runtime
-            'input_size': 336,             # to be filled at runtime
+            'h': 24,                      # to be filled at runtime
+            'input_size': 48,             # to be filled at runtime
             'futr_exog_list': futr_exog,
             'exclude_insample_y': False,
             'decoder_input_size_multiplier': 0.5,
@@ -100,10 +100,7 @@ MODEL_CONFIGS = {
             'learning_rate': 1e-3,
             'val_check_steps': None,
             'batch_size': 32,
-            # 'inference_windows_batch_size': 1024,
-            # 'windows_batch_size': 1024,
             'scaler_type': 'robust',
-            # 'step_size': 1,
             'random_seed': 1,
         }
     }
