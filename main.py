@@ -59,8 +59,11 @@ for model_name in selected_models:
     model_conf = MODEL_CONFIGS[model_name]
     model_class = model_conf['model_class']
     config = model_conf['params'].copy()
-    config['h'] = horizon
-    config['input_size'] = input_size
+    
+    if config['h'] is None:
+        config['h'] = horizon
+        config['input_size'] = input_size
+        
     config['max_steps'] = max_steps
 
     model = model_class(**config)
