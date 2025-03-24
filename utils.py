@@ -20,49 +20,6 @@ def apply_fourier(df: DFType, freq: Union[str, int], h: int = 0,
                   id_col: str = 'unique_id', time_col: str = 'ds') -> Tuple[DFType, DFType]:
     return fourier(df=df, freq=freq, season_length=season_length, k=k, h=h, id_col=id_col, time_col=time_col)
 
-def apply_trend(df: DFType, freq: Union[str, int], h: int = 0,
-                id_col: str = 'unique_id', time_col: str = 'ds') -> Tuple[DFType, DFType]:
-    return trend(df=df, freq=freq, h=h, id_col=id_col, time_col=time_col)
-
-def apply_time_features(df: DFType, freq: Union[str, int], h: int = 0,
-                         features: List[Union[str, Callable]] = ['month', 'day', 'week'],
-                         id_col: str = 'unique_id', time_col: str = 'ds') -> Tuple[DFType, DFType]:
-    return time_features(df=df, freq=freq, features=features, h=h, id_col=id_col, time_col=time_col)
-
-def apply_future_exog_to_historic(df: DFType, freq: Union[str, int], h: int = 0,
-                                   features: List[str] = [],
-                                   id_col: str = 'unique_id', time_col: str = 'ds') -> Tuple[DFType, DFType]:
-    return future_exog_to_historic(df=df, freq=freq, features=features, h=h, id_col=id_col, time_col=time_col)
-
-def apply_pipeline(df: DFType, freq: Union[str, int], h: int = 0,
-                   id_col: str = 'unique_id', time_col: str = 'ds') -> Tuple[DFType, DFType]:
-    def is_weekend(times):
-        if isinstance(times, pd.Index):
-            return times.weekday + 1 >= 6
-        else:
-            return times.dt.weekday() >= 6
-
-    def even_days_and_months(times):
-        if isinstance(times, pd.Index):
-            return pd.DataFrame({
-                'even_day': (times.weekday + 1) % 2 == 0,
-                'even_month': times.month % 2 == 0,
-            })
-        else:
-            return [
-                (times.dt.weekday() % 2 == 0).alias('even_day'),
-                (times.dt.month() % 2 == 0).alias('even_month'),
-            ]
-
-    features = [
-        trend,
-        partial(fourier, season_length=7, k=1),
-        partial(fourier, season_length=28, k=1),
-        partial(time_features, features=['day', is_weekend, even_days_and_months])
-    ]
-    return pipeline(df=df, features=features, freq=freq, h=h, id_col=id_col, time_col=time_col)
-
-
 def get_next_plot_dir(base_dir="results/train", prefix="plots_idx_"):
     os.makedirs(base_dir, exist_ok=True)
     existing_plot_dirs = [
