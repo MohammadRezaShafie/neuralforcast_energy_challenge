@@ -12,7 +12,6 @@ from tqdm import tqdm
 from neuralforecast import NeuralForecast
 from neuralforecast.losses.pytorch import MAE
 from neuralforecast.tsdataset import TimeSeriesDataset
-from neuralforecast.utils import AirPassengers, AirPassengersPanel, AirPassengersStatic, augment_calendar_df, AirPassengersDF
 from transformers import GPT2Config, GPT2Model, GPT2Tokenizer
 from utilsforecast.plotting import plot_series
 from neuralforecast.models import NBEATS, NHITS, LSTM, NHITS, RNN, TFT, TimeLLM
@@ -27,29 +26,26 @@ logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
 
 parser = argparse.ArgumentParser(description='NeuralForecast for Energy challenge')
 parser.add_argument('--epochs', type=int, default=10)
-parser.add_argument('--new-epochs', type=int, default=5)
 parser.add_argument('--models', nargs='+', default=['LSTM'], help='List of models to run')
-parser.add_argument('--use-preds', action='store_true',
-                    help='Use predicted values instead of ground truth for continued training')
 
 args = parser.parse_args()
 
 # Load data
 
-Y_train_df = load_and_preprocess('data/training_energy.csv')
-Y_test_df = load_and_preprocess('data/test_energy.csv')
+X_train_df = load_and_preprocess('data/training.csv')
+X_test_df = load_and_preprocess('data/testing.csv')
 
 # Split into train/validation
-mid_point = len(Y_train_df) // 3
-train_df = Y_train_df.iloc[:2*mid_point]
-val_df = Y_train_df.iloc[2*mid_point:]
+mid_point = len(X_train_df) // 3
+train_df = X_train_df.iloc[:2*mid_point]
+val_df = X_train_df.iloc[2*mid_point:]
 horizon = len(val_df)
 input_size = horizon
 max_steps = args.epochs
-new_max_steps = args.new_epochs
 
 # Output dir
-results_dir = "results"
+results_dir = "results/train"
+os.makedirs(results_dir, exist_ok=True)
 # Create a new unique subdirectory for this run's plots
 existing_plot_dirs = [
     d for d in os.listdir(results_dir)
@@ -64,7 +60,6 @@ current_plot_dir = os.path.join(results_dir, f"plots_idx_{next_run_index}")
 os.makedirs(current_plot_dir, exist_ok=True)
 
 print(f"Created new plot directory: {current_plot_dir}")
-os.makedirs(results_dir, exist_ok=True)
 
 selected_models = args.models
 print(f"Selected models: {selected_models}")
@@ -87,52 +82,23 @@ for model_name in selected_models:
         horizon = config['h']
         input_size= config['input_size']
         
+    print(f'{horizon=}')
+        
     config['max_steps'] = max_steps
     config['val_check_steps'] = max_steps
-
     model = model_class(**config)
     model_name = model.__class__.__name__
 
     print(f"\n--- Running Model: {model_name} ---")
     
-    print(f'{model.max_steps=}')
-    # Train + Predict
     nf = NeuralForecast(models=[model], freq='H')
     nf.fit(df=train_df)
-    print(f'{horizon=}')
-    # model.max_steps = new_max_steps
-    for m in nf.models:
-        m.max_steps = new_max_steps
-        m.trainer_kwargs['max_steps'] = new_max_steps   
-        m.val_check_steps = new_max_steps
-    print(f'Actual model max_steps: {nf.models[0].max_steps}')  # Verify change
-
-    all_preds = []
-    start_idx = 0
     
-    n_windows = (len(val_df) - horizon) // horizon + 1  # Total number of full windows
-    print(f"Starting sliding window inference and training: {n_windows} windows total.\n")
-
-    # Initialize tqdm progress bar
-    for window_idx in tqdm(range(n_windows), desc=f"{model_name} Sliding Windows"):
-        print()
-        window_df = val_df.iloc[start_idx : start_idx + horizon].copy()
-        preds = nf.predict(futr_df=window_df)
-        all_preds.append(preds)
-
-        if args.use_preds:
-            window_df = window_df.merge(preds[['ds', model_name]], on='ds', how='left')
-            window_df['y'] = window_df[model_name]
-            window_df.drop(columns=[model_name], inplace=True)
-
-        start_idx += horizon  # move window
-        df_combined = pd.concat([train_df, window_df], ignore_index=True)
-        nf.fit(df=df_combined, use_init_models=False)
-        
-    # Y_hat_df = nf.predict(futr_df=val_df, step_size=horizon)
+    Y_hat_df = nf.predict(futr_df=val_df)
     
-    Y_hat_df = pd.concat(all_preds).sort_values(['ds'])
     # Evaluate
+    if model_name == "NBEATSx":
+        model_name = "NBEATSx-hi-80"
     merged_df = val_df[['ds', 'y']].copy().merge(Y_hat_df[['ds', model_name]], on='ds', how='inner')
     # Drop any rows with missing predictions or ground truth
     merged_df = merged_df.dropna(subset=['y', model_name])
@@ -148,11 +114,8 @@ for model_name in selected_models:
 
     # Plot
     fig = plot_series(val_df, Y_hat_df)
-      
-    if args.use_preds:
-        metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}\nUsed Prediction"
-    else:
-        metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}"
+    
+    metrics_text = f"R²: {r2:.3f}\nRMSE: {rmse:.2f}\nMAE: {mae:.2f}"
     config_text = f"Model: {model_name}\n" + '\n'.join([f"{k}: {v}" for k, v in config.items()])
 
     fig.text(0.75, 0.85, metrics_text, fontsize=10, bbox=dict(facecolor='black', alpha=0.8), color='white')
@@ -175,3 +138,4 @@ for model_name in selected_models:
     plt.close(fig)
 
     print(f"Plot saved as {filename}")
+
