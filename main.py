@@ -16,7 +16,16 @@ from transformers import GPT2Config, GPT2Model, GPT2Tokenizer
 from utilsforecast.plotting import plot_series
 from neuralforecast.models import NBEATS, NHITS, LSTM, NHITS, RNN, TFT, TimeLLM
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
-from utils import load_and_preprocess
+from utils import (
+    load_and_preprocess,
+    apply_fourier,
+    apply_trend,
+    apply_time_features,
+    apply_future_exog_to_historic,
+    apply_pipeline,
+    get_next_plot_dir,
+    get_next_plot_filename
+)
 from config import MODEL_CONFIGS 
 
 print('imported all the packages')
@@ -27,7 +36,9 @@ logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
 parser = argparse.ArgumentParser(description='NeuralForecast for Energy challenge')
 parser.add_argument('--epochs', type=int, default=10)
 parser.add_argument('--models', nargs='+', default=['LSTM'], help='List of models to run')
-
+parser.add_argument('--fe', type=str, default=None,
+                    choices=['fourier', 'trend', 'time_features', 'future_exog', 'pipeline'],
+                    help='Feature engineering method to apply to the data')
 args = parser.parse_args()
 
 # Load data
@@ -43,22 +54,29 @@ horizon = len(val_df)
 input_size = horizon
 max_steps = args.epochs
 
-# Output dir
-results_dir = "results/train"
-os.makedirs(results_dir, exist_ok=True)
-# Create a new unique subdirectory for this run's plots
-existing_plot_dirs = [
-    d for d in os.listdir(results_dir)
-    if d.startswith("plots_idx_") and os.path.isdir(os.path.join(results_dir, d))
-]
-existing_indices = [
-    int(d.split("_")[-1]) for d in existing_plot_dirs
-    if d.split("_")[-1].isdigit()
-]
-next_run_index = max(existing_indices, default=-1) + 1
-current_plot_dir = os.path.join(results_dir, f"plots_idx_{next_run_index}")
-os.makedirs(current_plot_dir, exist_ok=True)
 
+freq = 'H'  # Or infer based on your dataset
+if args.fe:
+    print(f"Applying feature engineering method: {args.fe}")
+    if args.fe == 'fourier':
+        train_df, _ = apply_fourier(train_df, freq=freq, season_length=24, k=2, h=horizon)
+        val_df, _ = apply_fourier(val_df, freq=freq, season_length=24, k=2, h=horizon)
+    elif args.fe == 'trend':
+        train_df, _ = apply_trend(train_df, freq=freq, h=horizon)
+        val_df, _ = apply_trend(val_df, freq=freq, h=horizon)
+    elif args.fe == 'time_features':
+        train_df, _ = apply_time_features(train_df, freq=freq, h=horizon)
+        val_df, _ = apply_time_features(val_df, freq=freq, h=horizon)
+    elif args.fe == 'future_exog':
+        train_df, _ = apply_future_exog_to_historic(train_df, freq=freq, features=[], h=horizon)
+        val_df, _ = apply_future_exog_to_historic(val_df, freq=freq, features=[], h=horizon)
+    elif args.fe == 'pipeline':
+        train_df, _ = apply_pipeline(train_df, freq=freq, h=horizon)
+        val_df, _ = apply_pipeline(val_df, freq=freq, h=horizon)
+
+
+results_dir = "results/train"
+current_plot_dir = get_next_plot_dir(base_dir=results_dir)
 print(f"Created new plot directory: {current_plot_dir}")
 
 selected_models = args.models
@@ -122,18 +140,8 @@ for model_name in selected_models:
     fig.text(0.02, 0.05, config_text, fontsize=9, va='bottom', bbox=dict(facecolor='black', alpha=0.8), color='white')
 
     # Count existing files for this model in the results directory
-    
-    existing_files = [
-        f for f in os.listdir(current_plot_dir)
-        if f.startswith(f"forecast_{model_name}_idx") and f.endswith(".png")
-    ]
-    existing_indices = [
-        int(f.split("_idx")[1].split(".")[0]) for f in existing_files
-        if f.split("_idx")[1].split(".")[0].isdigit()
-    ]
-    next_index = max(existing_indices, default=0) + 1
+    filename = get_next_plot_filename(current_plot_dir, model_name)
 
-    filename = os.path.join(current_plot_dir, f"forecast_{model_name}_idx{next_index}.png")
     fig.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
