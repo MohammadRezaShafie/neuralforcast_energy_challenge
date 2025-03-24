@@ -4,14 +4,16 @@ from neuralforecast.models import LSTM, NHITS, TFT, KAN, VanillaTransformer ,NBE
 
 from neuralforecast.losses.pytorch import MAE, MQLoss
 
-futr_exog = ['Site-1 Temp', 'Site-1 GHI']
+# futr_exog = ['Site-1 Temp', 'Site-1 GHI']
+
+futr_exog = ["Site-1 Temp","Site-2 Temp","Site-3 Temp","Site-4 Temp","Site-5 Temp","Site-1 GHI","Site-2 GHI","Site-3 GHI","Site-4 GHI","Site-5 GHI"]
 
 MODEL_CONFIGS = {
     'LSTM': {
         'model_class': LSTM,
         'params': {
-            'h': 720,
-            'input_size': 1440,
+            'h': None,
+            'input_size': None,
             'futr_exog_list': futr_exog,
             'max_steps': None,
             'scaler_type': 'standard',
@@ -24,8 +26,8 @@ MODEL_CONFIGS = {
     'NHITS': {
         'model_class': NHITS,
         'params': {
-            'h': 720,
-            'input_size': 1440,
+            'h': None,
+            'input_size': None,
             'futr_exog_list': futr_exog,
             'max_steps': None,
             'scaler_type': 'standard',
@@ -36,55 +38,22 @@ MODEL_CONFIGS = {
     'TFT': {
         'model_class': TFT,
         'params': {
-            'h': 168,
-            'input_size': 336,
+            'h': None,
+            'input_size': None,
             'futr_exog_list': futr_exog,
             'max_steps': None,
             'scaler_type': 'standard',
             'hidden_size': 64,
             'learning_rate': 1e-3,
-            'batch_size': 16,
+            'batch_size': 8,
             'val_check_steps': None,
         }
     },
-        'KAN': {
-        'model_class': KAN,
-        'params': {
-            'h': 168,                      # Set dynamically at runtime
-            'input_size': 336,             # Set dynamically at runtime
-            'futr_exog_list': futr_exog,
-            'hist_exog_list': None,
-            'stat_exog_list': None,
-            'exclude_insample_y': False,
-            'grid_size': 5,
-            'spline_order': 3,
-            'scale_noise': 0.1,
-            'scale_base': 1.0,
-            'scale_spline': 1.0,
-            'enable_standalone_scale_spline': True,
-            'grid_eps': 0.02,
-            'grid_range': [-1, 1],
-            'n_hidden_layers': 1,
-            'hidden_size': 512,
-            'loss': MAE(),
-            'max_steps': None,              # Set from CLI
-            'learning_rate': 1e-3,
-            # 'early_stop_patience_steps': 5,
-            'batch_size': 32,
-            # 'windows_batch_size': 1024,
-            # 'inference_windows_batch_size': -1,
-            # 'step_size': 1,
-            'start_padding_enabled': False,
-            'scaler_type': 'standard',
-            'random_seed': 1,
-            'val_check_steps': None,
-        }
-    }, 
         'VanillaTransformer': {
         'model_class': VanillaTransformer,
         'params': {
-            'h': 24,                      # to be filled at runtime
-            'input_size': 48,             # to be filled at runtime
+            'h': None,                      # to be filled at runtime
+            'input_size': None,             # to be filled at runtime
             'futr_exog_list': futr_exog,
             'exclude_insample_y': False,
             'decoder_input_size_multiplier': 0.5,
@@ -107,8 +76,8 @@ MODEL_CONFIGS = {
         'NBEATSx': {
         'model_class': NBEATSx,
         'params': {
-            'h': 168,
-            'input_size': 336,
+            'h': None,
+            'input_size': None,
             'loss': MQLoss(level=[80, 90]),
             'scaler_type': 'robust',
             'dropout_prob_theta': 0.5,
