@@ -19,10 +19,6 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from utils import (
     load_and_preprocess,
     apply_fourier,
-    apply_trend,
-    apply_time_features,
-    apply_future_exog_to_historic,
-    apply_pipeline,
     get_next_plot_dir,
     get_next_plot_filename
 )
@@ -36,9 +32,7 @@ logging.getLogger('pytorch_lightning').setLevel(logging.ERROR)
 parser = argparse.ArgumentParser(description='NeuralForecast for Energy challenge')
 parser.add_argument('--epochs', type=int, default=10)
 parser.add_argument('--models', nargs='+', default=['LSTM'], help='List of models to run')
-parser.add_argument('--fe', type=str, default=None,
-                    choices=['fourier', 'trend', 'time_features', 'future_exog', 'pipeline'],
-                    help='Feature engineering method to apply to the data')
+parser.add_argument('--fourier', action='store_true' ,help='apply fourier features')
 args = parser.parse_args()
 
 # Load data
@@ -56,25 +50,12 @@ max_steps = args.epochs
 
 
 freq = 'H'  # Or infer based on your dataset
-if args.fe:
-    print(f"Applying feature engineering method: {args.fe}")
-    if args.fe == 'fourier':
-        train_df, _ = apply_fourier(train_df, freq=freq, season_length=24, k=2, h=horizon)
-        val_df, _ = apply_fourier(val_df, freq=freq, season_length=24, k=2, h=horizon)
-    elif args.fe == 'trend':
-        train_df, _ = apply_trend(train_df, freq=freq, h=horizon)
-        val_df, _ = apply_trend(val_df, freq=freq, h=horizon)
-    elif args.fe == 'time_features':
-        train_df, _ = apply_time_features(train_df, freq=freq, h=horizon)
-        val_df, _ = apply_time_features(val_df, freq=freq, h=horizon)
-    elif args.fe == 'future_exog':
-        train_df, _ = apply_future_exog_to_historic(train_df, freq=freq, features=[], h=horizon)
-        val_df, _ = apply_future_exog_to_historic(val_df, freq=freq, features=[], h=horizon)
-    elif args.fe == 'pipeline':
-        train_df, _ = apply_pipeline(train_df, freq=freq, h=horizon)
-        val_df, _ = apply_pipeline(val_df, freq=freq, h=horizon)
-
-
+if args.fourier:
+    print(f"Applying Fourier")
+    train_df, _ = apply_fourier(train_df, freq=freq, season_length=24, k=2, h=horizon)
+    val_df, _ = apply_fourier(val_df, freq=freq, season_length=24, k=2, h=horizon)
+    add_futr_exog = ["sin1_24", "sin2_24", "cos1_24", "cos2_24"]
+        
 results_dir = "results/train"
 current_plot_dir = get_next_plot_dir(base_dir=results_dir)
 print(f"Created new plot directory: {current_plot_dir}")
@@ -99,8 +80,11 @@ for model_name in selected_models:
     else:
         horizon = config['h']
         input_size= config['input_size']
-        
+
     print(f'{horizon=}')
+    
+    if args.fourier:
+        config['futr_exog_list'] = config['futr_exog_list'] + add_futr_exog
         
     config['max_steps'] = max_steps
     config['val_check_steps'] = max_steps
