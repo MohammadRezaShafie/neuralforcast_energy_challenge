@@ -6,6 +6,7 @@ data
 lightning_logs
 results
 logs
+checkpoints
 # C extensions
 *.so
 
